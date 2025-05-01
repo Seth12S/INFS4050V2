@@ -2,6 +2,19 @@
 $basePath = '../../';
 include '../../templates/session/private_session.php';
 
+// Get user's role
+$user_role_stmt = $conn->prepare("
+    SELECT j.job_title 
+    FROM FedEx_Employees e
+    JOIN FedEx_Jobs j ON e.job_code = j.job_code
+    WHERE e.e_id = ?
+");
+$user_role_stmt->bind_param("s", $_SESSION['e_id']);
+$user_role_stmt->execute();
+$user_role_result = $user_role_stmt->get_result();
+$user_role_row = $user_role_result->fetch_assoc();
+$user_role = $user_role_row['job_title'];
+
 // Check if user has sufficient clearance (Director or higher)
 if ($security_clearance < 3) {
     header("Location: employees_table.php?error=unauthorized");

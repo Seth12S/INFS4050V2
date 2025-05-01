@@ -54,7 +54,7 @@
                         </li>
                         <li>
                             <span class="update-icon">📱</span>
-                            Benefits portal now supports mobile login
+                            Portal benefits 
                         </li>
                     </ul>
                 </div>
