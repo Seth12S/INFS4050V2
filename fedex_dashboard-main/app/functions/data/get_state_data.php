@@ -1,6 +1,4 @@
 <?php
-$basePath = '../../../';
-include '../../../templates/session/private_session.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $chartType = $_POST['chart_type'] ?? '';

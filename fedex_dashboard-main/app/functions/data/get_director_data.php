@@ -1,6 +1,4 @@
 <?php
-    $basePath = '../../../';
-    include '../../../templates/session/private_session.php';
 
     // Get parameters from the request
     $state = isset($_POST['state']) ? $_POST['state'] : 'all';
