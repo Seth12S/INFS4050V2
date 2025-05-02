@@ -16,12 +16,12 @@
         $pageTitle = 'Login';
         include '../../templates/layouts/head.php'; 
     ?>
-
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <body>
 
         <!-- Header -->
         <?php include '../../templates/layouts/header.php'; ?>
-        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
         <!-- Main content -->
         <main class="login-container">
