@@ -37,6 +37,29 @@
                             echo '<div class="notification-error">Employee Login Required.</div>';
                         }
                         if ($error == 'incorrect_password') {
+
+                                // Failed-login counter
+                                $attempts = $_SESSION['login_attempts'];
+                                if ($attempts < 3) {
+                                    $left = 3 - $attempts;
+                                    echo "<div class=\"notification error\">
+                                            Incorrect Username or Password. You have {$left} attempt"
+                                          . ($left > 1 ? 's' : '') .
+                                          " left.
+                                          </div>";
+                                } else {
+                                    echo <<<HTML
+                                    <script>
+                                      Swal.fire({
+                                        icon: 'error',
+                                        title: 'Account Locked',
+                                        text: 'Your account has been locked due to multiple failed login attempts. Please contact HR.',
+                                        confirmButtonText: 'OK'
+                                      });
+                                    </script>
+                                    HTML; 
+                                }
+                        
                             echo '<div class="notification-error">Incorrect Username or Password.</div>';
                         } else if ($error == 'user_not_found') {
                             echo '<div class="notification-error">Incorrect Username or Password.</div>';
