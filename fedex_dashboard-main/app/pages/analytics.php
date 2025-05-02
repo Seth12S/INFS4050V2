@@ -9,20 +9,6 @@
     $stmt->execute();
     $result = $stmt->get_result();
     $user_role = $result->fetch_assoc()['role_name'];
-
-    // Include PhpSpreadsheet for the bonus data section
-   
-   
-    
-    // Function to load Excel file for bonus data
-   
-    
-    // Function to save bonus data to database
-   
-    
-    // Handle form submission for bonus data
-   
-    
    ?>
 
 <?php
@@ -259,7 +245,8 @@
         <!-- Header -->
         <?php include '../../templates/layouts/header.php'; ?>
 
-        <!-- Main content -->
+        <?php if (in_array($user_role, ['SVP', 'VP', 'System Admin', 'SystemAdmin'])): ?>
+        <!-- SVP, VP, System Admin Analytics Dashboard -->
         <main class="reports-container">
         <div class="reports-content">
             <h1>Analytics Dashboard</h1>
@@ -930,8 +917,72 @@
         createStateBarChart();
         createDirectorBarChart();
     </script>
-            </div> <!-- Close reports-content div -->
-        </main> <!-- Close reports-container main -->
+            </div>
+        </main>
+        
+        <?php elseif ($user_role === 'Director'): ?>
+        <!-- Director Analytics Dashboard -->
+        <main class="reports-container">
+            <div class="reports-content">
+                <h1>Director Analytics Dashboard</h1>
+                <div class="analytics-section">
+                    <h2>Your Team Overview</h2>
+                    <p>This section will display analytics specific to your team as a Director.</p>
+                    <p>You can customize this dashboard to show team performance, department metrics, and other director-specific data.</p>
+                </div>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-section">
+                        <h2>Team Distribution</h2>
+                        <p>Here you can add charts showing the distribution of your team members by job code, location, etc.</p>
+                    </div>
+                    
+                    <div class="analytics-section">
+                        <h2>Team Performance</h2>
+                        <p>Here you can add performance metrics for your team.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <?php elseif ($user_role === 'Manager'): ?>
+        <!-- Manager Analytics Dashboard -->
+        <main class="reports-container">
+            <div class="reports-content">
+                <h1>Manager Analytics Dashboard</h1>
+                <div class="analytics-section">
+                    <h2>Your Team Overview</h2>
+                    <p>This section will display analytics specific to your direct reports as a Manager.</p>
+                    <p>You can customize this dashboard to show team performance, individual metrics, and other manager-specific data.</p>
+                </div>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-section">
+                        <h2>Team Composition</h2>
+                        <p>Here you can add charts showing the composition of your direct reports.</p>
+                    </div>
+                    
+                    <div class="analytics-section">
+                        <h2>Individual Performance</h2>
+                        <p>Here you can add individual performance metrics for your team members.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <?php else: ?>
+        <!-- Other Roles (Employee, etc.) -->
+        <main class="reports-container">
+            <div class="reports-content">
+                <h1>Analytics Dashboard</h1>
+                <div class="analytics-section">
+                    <h2>Access Limited</h2>
+                    <p>Your current role does not have access to the full analytics dashboard.</p>
+                    <p>Please contact your manager or system administrator if you need access to specific analytics.</p>
+                </div>
+            </div>
+        </main>
+        <?php endif; ?>
 
         <!-- Footer -->
         <?php include '../../templates/layouts/footer.php'; ?>
