@@ -1,7 +1,14 @@
 <?php 
     $basePath = '../../';
     include '../../templates/session/public_session.php'; 
+
+    // counter is always defined
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = 0;
+    }
+        
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -14,6 +21,7 @@
 
         <!-- Header -->
         <?php include '../../templates/layouts/header.php'; ?>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
         <!-- Main content -->
         <main class="login-container">
