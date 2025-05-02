@@ -654,5 +654,11 @@ $bonuses_result = $conn->query($bonuses_query);
             $('#roleFilter').val(null).trigger('change');
         }
     </script>
-</body>
+
+            </div>
+        </main>
+        
+        <!-- Footer -->
+        <?php include '../../templates/layouts/footer.php'; ?>
+    </body>
 </html> 

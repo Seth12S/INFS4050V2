@@ -930,10 +930,12 @@
         createStateBarChart();
         createDirectorBarChart();
     </script>
+            </div> <!-- Close reports-content div -->
+        </main> <!-- Close reports-container main -->
 
-       
+        <!-- Footer -->
+        <?php include '../../templates/layouts/footer.php'; ?>
 
     </body>
- <!-- Footer -->
-        <?php include '../../templates/layouts/footer.php'; ?>
+
 </html>
