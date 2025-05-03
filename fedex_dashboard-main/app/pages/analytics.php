@@ -48,9 +48,9 @@ error_reporting(E_ALL);
         // Add role-based filtering
         switch($user_role) {
             case 'Manager':
-                $stateQuery .= " WHERE (e.m_id = ? OR e.e_id = ?)";
+                $stateQuery .= " WHERE (e.m_id = ?)";
                 $stateStmt = $conn->prepare($stateQuery . " ORDER BY l.state");
-                $stateStmt->bind_param('ss', $e_id, $e_id);
+                $stateStmt->bind_param('s', $e_id);
                 break;
             case 'Director':
                 $stateQuery .= " WHERE (e.d_id = ? OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id = ?))";
@@ -67,11 +67,7 @@ error_reporting(E_ALL);
     while ($row = $stateResult->fetch_assoc()) {
         $states[] = $row['state'];
     }
-    
-    // Debugging: Displaying states
-    echo "<pre>";
-    print_r($states);
-    echo "</pre>";
+
 ?>
 
 <!-- Grabing Data: Employee count by state for map -->
@@ -118,11 +114,6 @@ error_reporting(E_ALL);
     while ($row = $stateCountResult->fetch_assoc()) {
         $stateData[$row['state']] = $row['employee_count'];
     }
-
-    // Debugging: Displaying state data
-    echo "<pre>";
-    print_r($stateData);
-    echo "</pre>";
 
 ?>
 
@@ -186,19 +177,155 @@ error_reporting(E_ALL);
         $employeeCounts[] = $row['employee_count'];
     }
 
-    // Debugging: Displaying job code data
-    echo "<pre>";
-    print_r($jobCodeData);
-    print_r($jobCodes);
-    print_r($jobTitles);
-    print_r($employeeCounts);
-    echo "</pre>";
+?>  
 
-    // Debug what we have
-    echo "<script>console.log('PHP Debug - Job Codes:', " . json_encode($jobCodes) . ");</script>";
-    echo "<script>console.log('PHP Debug - Job Titles:', " . json_encode($jobTitles) . ");</script>";
-    echo "<script>console.log('PHP Debug - Employee Counts:', " . json_encode($employeeCounts) . ");</script>";
+<!-- Grabing Data: Headcount by Job Title and State -->
+<?php
+    // Initialize selected state
+    $selected_state = isset($_GET['state']) ? $_GET['state'] : 'all';
 
+    // For SVP, VP, System Admin
+    if (in_array($user_role, ['SVP', 'VP', 'System Admin'])) {
+        $jobTitleHeadcountQuery = "SELECT 
+            j.job_title,
+            COUNT(e.e_id) as employee_count
+        FROM 
+            FedEx_Employees e
+        JOIN 
+            FedEx_Jobs j ON e.job_code = j.job_code
+        JOIN 
+            FedEx_Locations l ON e.zip_code = l.zip_code
+        WHERE 
+            ? = 'all' OR l.state = ?
+        GROUP BY 
+            j.job_title
+        ORDER BY 
+            employee_count DESC, j.job_title";
+
+        $jobTitleHeadcountStmt = $conn->prepare($jobTitleHeadcountQuery);
+        $jobTitleHeadcountStmt->bind_param('ss', $selected_state, $selected_state);
+    }
+    // For Manager
+    elseif ($user_role == 'Manager') {
+        $jobTitleHeadcountQuery = "SELECT 
+            j.job_title,
+            COUNT(e.e_id) as employee_count
+        FROM 
+            FedEx_Employees e
+        JOIN 
+            FedEx_Jobs j ON e.job_code = j.job_code
+        JOIN 
+            FedEx_Locations l ON e.zip_code = l.zip_code
+        WHERE 
+            e.m_id = ?
+            AND (? = 'all' OR l.state = ?)
+        GROUP BY 
+            j.job_title
+        ORDER BY 
+            employee_count DESC, j.job_title";
+
+        $jobTitleHeadcountStmt = $conn->prepare($jobTitleHeadcountQuery);
+        $jobTitleHeadcountStmt->bind_param('sss', $e_id, $selected_state, $selected_state);
+    }
+    // For Director
+    elseif ($user_role == 'Director') {
+        $jobTitleHeadcountQuery = "SELECT 
+            j.job_title,
+            COUNT(e.e_id) as employee_count
+        FROM 
+            FedEx_Employees e
+        JOIN 
+            FedEx_Jobs j ON e.job_code = j.job_code
+        JOIN 
+            FedEx_Locations l ON e.zip_code = l.zip_code
+        WHERE 
+            (e.d_id = ? OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id = ?))
+            AND (? = 'all' OR l.state = ?)
+        GROUP BY 
+            j.job_title
+        ORDER BY 
+            employee_count DESC, j.job_title";
+
+        $jobTitleHeadcountStmt = $conn->prepare($jobTitleHeadcountQuery);
+        $jobTitleHeadcountStmt->bind_param('ssss', $e_id, $e_id, $selected_state, $selected_state);
+    }
+
+    $jobTitleHeadcountStmt->execute();
+    $jobTitleHeadcountResult = $jobTitleHeadcountStmt->get_result();
+
+    // Initialize the array to store job title headcount data
+    $jobTitleHeadcountData = [];
+
+    // Populate the array
+    while ($row = $jobTitleHeadcountResult->fetch_assoc()) {
+        $jobTitleHeadcountData[$row['job_title']] = $row['employee_count'];
+    }
+
+?>
+
+<!-- Grabing Data: Headcount by Manager or Director --> 
+<?php
+
+    // For SVP, VP, System Admin
+
+?>
+
+<?php
+// Only fetch leadership data if user is SVP, VP, or System Admin
+if (in_array($user_role, ['SVP', 'VP', 'System Admin'])) {
+    // Get the leadership type filter - keep existing state filter if present
+    $leadership_type = isset($_GET['leadership_type']) ? $_GET['leadership_type'] : 'director';
+    $selected_state = isset($_GET['state']) ? $_GET['state'] : 'all';
+    
+    // SQL for leaders headcount - changes based on selected filter
+    if ($leadership_type == 'director') {
+        $leaderQuery = "SELECT 
+                          CONCAT(dir.f_name, ' ', dir.l_name) AS leader_name,
+                          COUNT(e.e_id) AS employee_count
+                        FROM 
+                          FedEx_Employees e
+                        JOIN 
+                          FedEx_Employees dir ON e.d_id = dir.e_id
+                        JOIN 
+                          FedEx_Jobs j ON dir.job_code = j.job_code
+                        WHERE 
+                          j.job_title = 'Director IT'
+                        GROUP BY 
+                          dir.e_id, dir.f_name, dir.l_name
+                        ORDER BY 
+                          employee_count DESC";
+    } else {
+        $leaderQuery = "SELECT 
+                          CONCAT(mgr.f_name, ' ', mgr.l_name) AS leader_name,
+                          COUNT(e.e_id) AS employee_count
+                        FROM 
+                          FedEx_Employees e
+                        JOIN 
+                          FedEx_Employees mgr ON e.m_id = mgr.e_id
+                        JOIN 
+                          FedEx_Jobs j ON mgr.job_code = j.job_code
+                        WHERE 
+                          j.job_title = 'Manager IT'
+                        GROUP BY 
+                          mgr.e_id, mgr.f_name, mgr.l_name
+                        ORDER BY 
+                          employee_count DESC";
+    }
+    
+    $leaderStmt = $conn->prepare($leaderQuery);
+    $leaderStmt->execute();
+    $leaderResult = $leaderStmt->get_result();
+    
+    // Initialize arrays
+    $leaderNames = [];
+    $leaderCounts = [];
+    
+    // Populate arrays
+    while ($row = $leaderResult->fetch_assoc()) {
+        $leaderNames[] = $row['leader_name'];
+        $leaderCounts[] = $row['employee_count'];
+    }
+}
 ?>
 
 <!-- HTML -->
@@ -218,112 +345,19 @@ error_reporting(E_ALL);
         <script src="https://cdn.jsdelivr.net/npm/topojson@3"></script>
 
         <style>
-
-            .analytics-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 20px;
-                margin-top: 20px;
-            }
-            
-            .analytics-section {
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .chart-container {
-                width: 100%;
-                height: 500px; 
-                margin-top: 15px;
-                position: relative;
-            }
-            
-            .analytics-chart {
-                width: 100%;
-                height: 100%;
-                object-fit: contain;
-            }
-            
-            .chart-controls {
-                margin-bottom: 15px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                flex-wrap: wrap;
-            }
-            
-            .chart-controls select {
-                padding: 5px 10px;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-            }
-            
-            .chart-controls label {
-                font-weight: 500;
-            }
-            
-            .filter-group {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-right: 15px;
-            }
-            
-            .map-container {
-                width: 100%;
-                height: 500px;
-                position: relative;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-            
-            .state-tooltip {
-                position: absolute;
-                padding: 8px 12px;
-                background: rgba(0, 0, 0, 0.8);
+            .fixed-tooltip {
+                background-color: #4D148C;
                 color: white;
-                border-radius: 4px;
-                font-size: 14px;
-                pointer-events: none;
-                z-index: 100;
+                padding: 8px 16px;
+                z-index: 1000;
+                text-align: center;
+                position: absolute;
+                font-weight: bold;
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: none;
             }
-            
-            .state {
-                fill: #e0e0e0;
-                stroke: #fff;
-                stroke-width: 0.5;
-                transition: fill 0.3s;
-            }
-            
-            .state:hover {
-                fill: #FF6600; 
-                cursor: pointer;
-            }
-            
-            .state.active {
-                fill: #4D148C; 
-            }
-            
-            /* Add style for bonus editor */
-            .bonus-editor-container {
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                margin-top: 20px;
-            }
-            
-            .bonus-cell {
-                width: 100%;
-                padding: 5px;
-                border: 1px solid #ddd;
-                border-radius: 3px;
-                font-size: 14px;
-            }
-
         </style>
 
     </head>
@@ -339,7 +373,7 @@ error_reporting(E_ALL);
             // Function to create the US map
             function createUSMap() {
                 const width = document.getElementById('us-map').clientWidth;
-                const height = 500;
+                const height = 600;
                 
                 // Create SVG
                 const svg = d3.select('#us-map')
@@ -349,14 +383,14 @@ error_reporting(E_ALL);
                     .attr('viewBox', '0 0 959 593')
                     .attr('preserveAspectRatio', 'xMidYMid meet');
                     
-                // Create tooltip
-                const tooltip = d3.select('#state-tooltip');
-                
+                // Get the fixed tooltip
+                const fixedTooltip = d3.select('#fixed-tooltip');
+                    
                 // Load US map data
                 d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(data => {
                     const projection = d3.geoAlbersUsa()
                         .scale(1000)
-                        .translate([width / 2, height / 2]);
+                        .translate([width / 2 - 60, height / 2]);
                         
                     const path = d3.geoPath().projection(projection);
                     
@@ -386,40 +420,11 @@ error_reporting(E_ALL);
                             
                             // Only change color if the state has employees
                             if (count > 0) {
-                                d3.select(this)
-                                    .style('fill', '#FF6600'); 
+                                d3.select(this).style('fill', '#FF6600'); 
                                 
-                                // Get the SVG coordinates of the mouse
-                                const svgRect = svg.node().getBoundingClientRect();
-                                const x = event.clientX - svgRect.left;
-                                const y = event.clientY - svgRect.top;
-                                
-                                // Fetch additional data for this state
-                                fetch('../functions/data/get_state_data.php', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/x-www-form-urlencoded',
-                                    },
-                                    body: `state=${encodeURIComponent(stateAbbr)}&data_type=leadership`
-                                })
-                                .then(response => response.json())
-                                .then(data => {
-                                    tooltip.style('display', 'block')
-                                        .html(`${d.properties.name}:<br>
-                                              Employees: ${count}<br>
-                                              Directors: ${data.director_count || 0}<br>
-                                              Managers: ${data.manager_count || 0}`)
-                                        .style('left', x + 'px')
-                                        .style('top', y + 'px');
-                                })
-                                .catch(error => {
-                                    console.error('Error fetching leadership data:', error);
-                                    // Fallback to just showing employee count
-                                    tooltip.style('display', 'block')
-                                        .html(`${d.properties.name}: ${count} employees`)
-                                        .style('left', x + 'px')
-                                        .style('top', y + 'px');
-                                });
+                                // Show and update the fixed tooltip
+                                fixedTooltip.style('display', 'block')
+                                           .html(`${d.properties.name}: ${count} employees`);
                             }
                         })
                         .on('mouseout', function(event, d) {
@@ -428,7 +433,8 @@ error_reporting(E_ALL);
                             d3.select(this)
                                 .style('fill', stateData[stateAbbr] ? getColorScale(stateData[stateAbbr]) : '#e0e0e0');
                                 
-                            tooltip.style('display', 'none');
+                            // Hide the fixed tooltip
+                            fixedTooltip.style('display', 'none');
                         })
                         .on('click', function(event, d) {
                             const stateAbbr = getStateAbbr(d.properties.name);
@@ -442,6 +448,7 @@ error_reporting(E_ALL);
                                 
                                 if (document.getElementById('stateFilter')) {
                                     document.getElementById('stateFilter').value = stateAbbr;
+                                    updateJobTitlePieChart();
                                     updateChart();
                                     updateStateBarChart(stateAbbr);
                                 }
@@ -478,6 +485,13 @@ error_reporting(E_ALL);
                 if (count <= 50) return '#FF8000'; 
                 return '#FF6600'; 
             }
+            
+            // Manually call the map creation function when the page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                createUSMap();
+                console.log('Map initialization called');
+            });
+            
         </script>
 
         <main class="reports-container">
@@ -485,546 +499,394 @@ error_reporting(E_ALL);
 
                 <h1>Analytics Dashboard</h1>
                 <div class="analytics-section">
-                    <h2>Employee Overview</h2>
+                    <h2>Employee Heatmap</h2>
                     <div class="map-container" id="us-map">
-                        <div class="state-tooltip" id="state-tooltip" style="display: none;"></div>
+                        <div class="fixed-tooltip" id="fixed-tooltip"></div>
                     </div>
                 </div>
                 <div class="analytics-grid">
-                <div class="analytics-section">
-                    <h2>Headcount by Job Code</h2>
-                    <div class="chart-controls">
-                        <div class="filter-group">
-                            <label for="sliceCount">Number of Slices:</label>
-                            <select id="sliceCount" onchange="updateChart()">
-                                <option value="5">Top 5</option>
-                                <option value="10">Top 10</option>
-                                <option value="15">Top 15</option>
-                            </select>
+                    <!-- First section - Headcount by Job Title -->
+                    <div class="analytics-section">
+                        <h2>Headcount by Job Title</h2>
+                        <div class="chart-controls">
+                            <div class="filter-group">
+                                <label for="stateFilter">Filter by State:</label>
+                                <select id="stateFilter" onchange="updateJobTitlePieChart()">
+                                    <option value="all" <?php echo $selected_state == 'all' ? 'selected' : ''; ?>>All States</option>
+                                    <?php foreach ($states as $state): ?>
+                                        <option value="<?php echo htmlspecialchars($state); ?>" <?php echo $selected_state == $state ? 'selected' : ''; ?>><?php echo htmlspecialchars($state); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="sliceCount">Number of Job Titles:</label>
+                                <select id="sliceCount" onchange="updateJobTitlePieChart(false)">
+                                    <option value="0">All Job Titles</option>
+                                    <option value="5">Top 5</option>
+                                    <option value="10" selected>Top 10</option>
+                                    <option value="15">Top 15</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <label for="stateFilter">State:</label>
-                            <select id="stateFilter" onchange="updateChart()">
-                                <option value="all">All States</option>
-                                <?php foreach ($states as $state): ?>
-                                    <option value="<?php echo htmlspecialchars($state); ?>"><?php echo htmlspecialchars($state); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="chart-container">
+                            <canvas id="jobTitlePieChart"></canvas>
                         </div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="jobDistributionChart"></canvas>
+
+                    <!-- Second section - Headcount by State -->
+                    <div class="analytics-section">
+                        <h2>Headcount by State</h2>
+                        <div class="chart-container">
+                            <canvas id="stateBarChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
-                <div class="analytics-section">
-                    <h2>Employees by State</h2>
-                    <div class="chart-controls">
-                        <div class="filter-group">
-                            <label for="stateBarDirectorFilter">Filter by Director:</label>
-                            <select id="stateBarDirectorFilter" onchange="updateStateBarChart()">
-                                <option value="all">All Directors</option>
-                                <?php foreach ($directorTitles as $index => $name): ?>
-                                    <option value="<?php echo htmlspecialchars($directorTitles[$index] . ' - ' . $name); ?>">
-                                        <?php echo htmlspecialchars($directorTitles[$index] . ' - ' . $name); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                <!-- Add the Leadership chart in a new row AFTER the analytics-grid -->
+                <?php if (in_array($user_role, ['SVP', 'VP', 'System Admin'])): ?>
+                <div class="analytics-grid" style="grid-template-columns: 1fr; margin-top: 30px;">
+                    <div class="analytics-section">
+                        <h2>Headcount by Leadership</h2>
+                        <div class="chart-controls">
+                            <div class="filter-group">
+                                <label for="leadershipType">View by:</label>
+                                <select id="leadershipType" onchange="updateLeadershipChart(this.value)">
+                                    <option value="director" <?php echo $leadership_type == 'director' ? 'selected' : ''; ?>>Directors</option>
+                                    <option value="manager" <?php echo $leadership_type == 'manager' ? 'selected' : ''; ?>>Managers</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="leadershipBarChart"></canvas>
                         </div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="stateBarChart"></canvas>
-                    </div>
-                </div>               
-            </div>
-            <div class="analytics-section" style="margin-top: 20px;">
-                <h2>Headcount by Director</h2>
-                <div class="chart-controls">
-                    <div class="filter-group">
-                        <label for="directorStateFilter">State:</label>
-                        <select id="directorStateFilter" onchange="updateDirectorChart()">
-                            <option value="all">All States</option>
-                            <?php foreach ($states as $state): ?>
-                                <option value="<?php echo htmlspecialchars($state); ?>"><?php echo htmlspecialchars($state); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="directorSortBy">Sort By:</label>
-                        <select id="directorSortBy" onchange="updateDirectorChart()">
-                            <option value="name">Director Name</option>
-                            <option value="count">Employee Count</option>
-                        </select>
-                    </div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="directorBarChart"></canvas>
-                </div>
+                <?php endif; ?>
             </div>
+
         </main>
 
-        <script>
-            // Store the full data
-            const fullData = {
-                jobCodes: <?php echo json_encode($jobCodes ?? []); ?>,
-                jobTitles: <?php echo json_encode($jobTitles ?? []); ?>,
-                employeeCounts: <?php echo json_encode($employeeCounts ?? []); ?>
-            };
-            
-            // Store director data for the bar chart
-            const directorData = {
-                titles: <?php echo json_encode($directorTitles); ?>,
-                names: <?php echo json_encode($directorNames); ?>,
-                counts: <?php echo json_encode($directorCounts); ?>
-            };
-            
-            let chart;
-            let stateBarChart;
-            let directorBarChart;
-            
-            // Function to create the state bar chart
-            function createStateBarChart() {
-                const ctx = document.getElementById('stateBarChart').getContext('2d');
-                
-                // Sort states by employee count
-                const sortedStates = Object.entries(stateData)
-                    .sort(([,a], [,b]) => b - a)
-                    .reduce((r, [k, v]) => ({ ...r, [k]: v }), {});
-                
-                const labels = Object.keys(sortedStates);
-                const data = Object.values(sortedStates);
-                
-                // Generate colors based on employee count using purple shades
-                const backgroundColors = data.map(count => {
-                    if (count === 0) return '#e0e0e0';
-                    if (count <= 5) return '#E6CCFF'; 
-                    if (count <= 10) return '#CC99FF'; 
-                    if (count <= 20) return '#B366FF'; 
-                    if (count <= 30) return '#9933FF'; 
-                    if (count <= 50) return '#8000FF'; 
-                    return '#4D148C'; 
-                });
-                
-                stateBarChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Number of Employees',
-                            data: data,
-                            backgroundColor: backgroundColors,
-                            borderColor: '#fff',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.raw} employees`;
-                                    }
-                                }
-                            },
-                            datalabels: {
-                                anchor: 'end',
-                                align: 'top',
-                                formatter: function(value) {
-                                    return value;
-                                },
-                                font: {
-                                    weight: 'bold',
-                                    size: 12
-                                },
-                                color: '#000'
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Number of Employees',
-                                    font: {
-                                        size: 14
-                                    }
-                                },
-                                ticks: {
-                                    font: {
-                                        size: 12
-                                    }
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    maxRotation: 45,
-                                    minRotation: 45,
-                                    font: {
-                                        size: 12
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    plugins: [ChartDataLabels]
-                });
-            }
-            
-            function updateChart() {
-                const sliceCount = document.getElementById('sliceCount').value;
-                const selectedState = document.getElementById('stateFilter').value;
-                
-                // If a specific state is selected, fetch data for that state
-                if (selectedState !== 'all') {
-                    fetchStateData(selectedState, sliceCount);
-                    return;
-                }
-                
-                let labels = [];
-                let data = [];
-                let backgroundColors = [];
-                
-                const colors = [
-                    '#FF0000', 
-                    '#00FF00', 
-                    '#0000FF', 
-                    '#FFA500', 
-                    '#800080', 
-                    '#008080', 
-                    '#FFD700', 
-                    '#FF69B4', 
-                    '#4B0082', 
-                    '#006400', 
-                    '#8B0000', 
-                    '#FF4500', 
-                    '#008000', 
-                    '#800000'  
-                ];
-                
-                if (sliceCount === 'all') {
-                    labels = fullData.jobTitles;
-                    data = fullData.employeeCounts;
-                    backgroundColors = colors.slice(0, fullData.jobCodes.length);
-                } else {
-                    const count = parseInt(sliceCount);
-                    labels = fullData.jobTitles.slice(0, count);
-                    data = fullData.employeeCounts.slice(0, count);
-                    backgroundColors = colors.slice(0, count);
-                }
-                
-                renderChart(labels, data, backgroundColors);
-            }
-            
-            function fetchStateData(state, sliceCount) {
-                // Submit the form and handle the response
-                fetch('../functions/data/get_state_data.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `state=${encodeURIComponent(state)}&slice_count=${encodeURIComponent(sliceCount)}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const colors = [
-                        '#FF0000', 
-                        '#00FF00', 
-                        '#0000FF', 
-                        '#FFA500', 
-                        '#800080', 
-                        '#008080', 
-                        '#FFD700', 
-                        '#FF69B4', 
-                        '#4B0082', 
-                        '#006400', 
-                        '#8B0000', 
-                        '#000080', 
-                        '#FF4500', 
-                        '#008000', 
-                        '#800000'  
-                    ];
-                    
-                    const backgroundColors = colors.slice(0, data.labels.length);
-                    renderChart(data.labels, data.data, backgroundColors);
-                })
-                .catch(error => {
-                    console.error('Error fetching state data:', error);
-                    alert('Error fetching data for the selected state. Please try again.');
-                });
-            }
-            
-            function renderChart(labels, data, backgroundColors) {
-                console.log('Rendering chart with:', {
-                    labels,
-                    data,
-                    hasLabels: labels && labels.length > 0,
-                    hasData: data && data.length > 0
-                });
-                
-                if (chart) {
-                    chart.destroy();
-                }
-                
-                const ctx = document.getElementById('jobDistributionChart').getContext('2d');
-                chart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: data,
-                            backgroundColor: backgroundColors
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                                labels: {
-                                    font: {
-                                        size: 14
-                                    },
-                                    boxWidth: 15,
-                                    padding: 10,
-                                    generateLabels: function(chart) {
-                                        const data = chart.data;
-                                        if (data.labels.length && data.datasets.length) {
-                                            return data.labels.map((label, i) => ({
-                                                text: label,
-                                                fillStyle: data.datasets[0].backgroundColor[i],
-                                                hidden: false,
-                                                lineCap: 'butt',
-                                                lineDash: [],
-                                                lineDashOffset: 0,
-                                                lineJoin: 'miter',
-                                                lineWidth: 1,
-                                                strokeStyle: data.datasets[0].backgroundColor[i],
-                                                pointStyle: 'circle',
-                                                rotation: 0
-                                            }));
-                                        }
-                                        return [];
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = Math.round((value / total) * 100);
-                                        return `${label}: ${value} employees (${percentage}%)`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            // Function to create the director bar chart
-            function createDirectorBarChart() {
-                const ctx = document.getElementById('directorBarChart').getContext('2d');
-                
-                // Create labels combining director title and name
-                const labels = directorData.names.map((name, index) => 
-                    `${directorData.titles[index]} - ${name}`
-                );
-                
-                // Generate colors based on employee count using purple shades
-                const backgroundColors = directorData.counts.map(count => {
-                    if (count === 0) return '#e0e0e0';
-                    if (count <= 5) return '#E6CCFF'; 
-                    if (count <= 10) return '#CC99FF'; 
-                    if (count <= 20) return '#B366FF'; 
-                    if (count <= 30) return '#9933FF'; 
-                    if (count <= 50) return '#8000FF'; 
-                    return '#4D148C';       
-                });
-                
-                directorBarChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Number of Employees',
-                            data: directorData.counts,
-                            backgroundColor: backgroundColors,
-                            borderColor: '#fff',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `${context.raw} employees`;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Number of Employees',
-                                    font: {
-                                        size: 14
-                                    }
-                                },
-                                ticks: {
-                                    font: {
-                                        size: 12
-                                    }
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    maxRotation: 45,
-                                    minRotation: 45,
-                                    font: {
-                                        size: 12
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            // Function to update the director chart based on filters
-            function updateDirectorChart() {
-                const selectedState = document.getElementById('directorStateFilter').value;
-                const sortBy = document.getElementById('directorSortBy').value;
-                
-                // If a specific state is selected, fetch data for that state
-                if (selectedState !== 'all') {
-                    fetchDirectorDataByState(selectedState, sortBy);
-                    return;
-                }
-                
-                // Otherwise, use the existing data but apply sorting
-                let sortedIndices = [...Array(directorData.names.length).keys()];
-                
-                if (sortBy === 'count') {
-                    // Sort by employee count (descending)
-                    sortedIndices.sort((a, b) => directorData.counts[b] - directorData.counts[a]);
-                } else {
-                    // Sort by name (ascending)
-                    sortedIndices.sort((a, b) => directorData.names[a].localeCompare(directorData.names[b]));
-                }
-                
-                // Apply the sorting
-                const sortedLabels = sortedIndices.map(i => 
-                    `${directorData.titles[i]} - ${directorData.names[i]}`
-                );
-                const sortedData = sortedIndices.map(i => directorData.counts[i]);
-                
-                // Generate colors based on employee count
-                const backgroundColors = sortedData.map(count => {
-                    if (count === 0) return '#e0e0e0';
-                    if (count <= 5) return '#E6CCFF'; 
-                    if (count <= 10) return '#CC99FF'; 
-                    if (count <= 20) return '#B366FF'; 
-                    if (count <= 30) return '#9933FF'; 
-                    if (count <= 50) return '#8000FF'; 
-                    return '#4D148C'; 
-                });
-                
-                // Update the chart
-                directorBarChart.data.labels = sortedLabels;
-                directorBarChart.data.datasets[0].data = sortedData;
-                directorBarChart.data.datasets[0].backgroundColor = backgroundColors;
-                directorBarChart.update();
-            }
-            
-            // Function to fetch director data filtered by state
-            function fetchDirectorDataByState(state, sortBy) {
-                // Submit the form and handle the response
-                fetch('../functions/data/get_director_data.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `state=${encodeURIComponent(state)}&sort_by=${encodeURIComponent(sortBy)}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Update the chart with the new data
-                    directorBarChart.data.labels = data.labels;
-                    directorBarChart.data.datasets[0].data = data.data;
-                    directorBarChart.data.datasets[0].backgroundColor = data.colors;
-                    directorBarChart.update();
-                })
-                .catch(error => {
-                    console.error('Error fetching director data:', error);
-                    alert('Error fetching data for the selected state. Please try again.');
-                });
-            }
-            
-            // Function to update the state bar chart
-            function updateStateBarChart() {
-                const selectedDirector = document.getElementById('stateBarDirectorFilter').value;
-                
-                // Submit the form and handle the response
-                fetch('../functions/data/get_state_data.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `chart_type=state_bar&director=${encodeURIComponent(selectedDirector)}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Update the state bar chart with the new data
-                    stateBarChart.data.labels = data.labels;
-                    stateBarChart.data.datasets[0].data = data.data;
-                    stateBarChart.data.datasets[0].backgroundColor = data.colors;
-                    stateBarChart.update();
-                })
-                .catch(error => {
-                    console.error('Error fetching state data:', error);
-                    alert('Error fetching data for the selected director. Please try again.');
-                });
-            }
-            
-            // Initialize the charts and map
-            document.addEventListener('DOMContentLoaded', function() {
-                updateChart();
-                createUSMap();
-                createStateBarChart();
-                createDirectorBarChart();
-            });
-        </script>
 
-        <!-- Map Initialization -->
-        <script>
-            // For debugging: Display the stateData to console
-            console.log('State Data Object:', stateData);
-            
-            // Manually call the map creation function when the page loads
-            document.addEventListener('DOMContentLoaded', function() {
-                createUSMap();
-                console.log('Map initialization called');
-            });
-        </script>
 
         <?php include '../../templates/layouts/footer.php'; ?>
 
     </body>
 
 </html>
+
+<script>
+// Store the job title headcount data
+const jobTitleHeadcountData = <?php echo json_encode($jobTitleHeadcountData); ?>;
+let jobTitlePieChart;
+
+// Function to update the pie chart based on filters
+function updateJobTitlePieChart(reload = true) {
+    const stateFilter = document.getElementById('stateFilter').value;
+    
+    // If reload is true, fetch new data for the selected state
+    if (reload) {
+        window.location.href = window.location.pathname + '?state=' + stateFilter;
+        return;
+    }
+    
+    // Otherwise just update the display with existing data
+    if (jobTitlePieChart) {
+        jobTitlePieChart.destroy();
+    }
+    
+    createJobTitlePieChart();
+}
+
+// Function to create the initial pie chart
+function createJobTitlePieChart() {
+    const ctx = document.getElementById('jobTitlePieChart').getContext('2d');
+    
+    // Clear any previous error messages
+    const container = document.querySelector('#jobTitlePieChart').parentNode;
+    const existingMsg = container.querySelector('.no-data-message');
+    if (existingMsg) {
+        container.removeChild(existingMsg);
+    }
+    
+    // Get data for the chart
+    let data = Object.entries(jobTitleHeadcountData);
+    
+    // Check if data exists
+    if (data.length === 0) {
+        // Create a message in the chart area
+        const message = document.createElement('div');
+        message.textContent = 'No data available for the selected state';
+        message.className = 'no-data-message';
+        message.style.position = 'absolute';
+        message.style.top = '50%';
+        message.style.left = '50%';
+        message.style.transform = 'translate(-50%, -50%)';
+        message.style.fontSize = '16px';
+        message.style.fontWeight = 'bold';
+        container.appendChild(message);
+        return;
+    }
+    
+    // Sort by count (descending)
+    data.sort((a, b) => b[1] - a[1]);
+    
+    // Apply slice count filter if not 0 (all)
+    const sliceCount = parseInt(document.getElementById('sliceCount').value);
+    if (sliceCount > 0 && data.length > sliceCount) {
+        // Get top N items without creating an "Other" category
+        data = data.slice(0, sliceCount);
+    }
+    
+    // Extract labels and values
+    const labels = data.map(item => item[0]);
+    const values = data.map(item => item[1]);
+    
+    // Define colors for the pie chart
+    const colors = [
+        '#4D148C', '#FF6600', '#003366', '#00A550', '#FF9900',
+        '#6600CC', '#FF3300', '#006699', '#33CC33', '#FFCC00', 
+        '#9900CC', '#FF6666', '#0099CC', '#66CC66', '#FFE066'
+    ];
+    
+    // Create the chart
+    jobTitlePieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, data.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'left',
+                    labels: {
+                        boxWidth: 15,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Initialize the chart when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    createJobTitlePieChart();
+});
+</script>
+
+<script>
+// For the state bar chart
+let stateBarChart;
+
+// Function to create or update the state bar chart
+function createStateBarChart() {
+    const ctx = document.getElementById('stateBarChart').getContext('2d');
+    
+    console.log("State data for chart:", stateData);
+    
+    let data = [];
+    for (const state in stateData) {
+        if (stateData.hasOwnProperty(state)) {
+            data.push([state, stateData[state]]);
+        }
+    }
+    
+    // Sort by employee count (descending)
+    data.sort((a, b) => b[1] - a[1]);
+    
+    // Limit to top 10 states
+    if (data.length > 10) {
+        data = data.slice(0, 10);
+    }
+    
+    console.log("Processed data for chart:", data);
+    
+    // If no data, show message
+    if (data.length === 0) {
+        console.error("No state data available for chart");
+        return;
+    }
+    
+    // Extract labels and values
+    const labels = data.map(item => item[0]);
+    const values = data.map(item => item[1]);
+    
+    // If chart already exists, destroy it
+    if (stateBarChart) {
+        stateBarChart.destroy();
+    }
+    
+    // Create the bar chart
+    stateBarChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Employees',
+                data: values,
+                backgroundColor: '#4D148C',
+                borderColor: '#4D148C',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'x', 
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Employees: ${context.raw}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Employees'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'State'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Function to update state bar chart when needed
+function updateStateBarChart(stateAbbr) {
+    // For now, just recreate the chart
+    createStateBarChart();
+}
+
+// Initialize the chart when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(createStateBarChart, 500);
+});
+</script>
+
+<?php if (in_array($user_role, ['SVP', 'VP', 'System Admin'])): ?>
+<script>
+// Store the leadership data
+const leaderNames = <?php echo json_encode($leaderNames); ?>;
+const leaderCounts = <?php echo json_encode($leaderCounts); ?>;
+const leadershipType = '<?php echo $leadership_type; ?>';
+let leadershipChart;
+
+// Function to create the leadership bar chart
+function createLeadershipChart() {
+    const ctx = document.getElementById('leadershipBarChart').getContext('2d');
+    
+    // Check if data exists
+    if (leaderNames.length === 0) {
+        return;
+    }
+    
+    // Limit data to top 10 if too many
+    let displayNames = [...leaderNames];
+    let displayCounts = [...leaderCounts];
+    
+    if (displayNames.length > 10) {
+        displayNames = displayNames.slice(0, 10);
+        displayCounts = displayCounts.slice(0, 10);
+    }
+    
+    // If chart already exists, destroy it
+    if (leadershipChart) {
+        leadershipChart.destroy();
+    }
+    
+    // Create the chart
+    leadershipChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: displayNames,
+            datasets: [{
+                label: 'Employees',
+                data: displayCounts,
+                backgroundColor: '#FF6600', 
+                borderColor: '#FF6600',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', 
+            plugins: {
+                title: {
+                    display: true,
+                    text: leadershipType === 'director' ? 'Headcount by Director' : 'Headcount by Manager'
+                },
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Employees: ${context.raw}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Employees'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: leadershipType === 'director' ? 'Director' : 'Manager'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Function to update the leadership chart when filter changes
+function updateLeadershipChart(type) {
+    // Preserve existing state filter if present
+    const stateFilter = document.getElementById('stateFilter').value;
+    window.location.href = window.location.pathname + '?state=' + stateFilter + '&leadership_type=' + type;
+}
+
+// Initialize the leadership chart when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    createLeadershipChart();
+});
+</script>
+<?php endif; ?>

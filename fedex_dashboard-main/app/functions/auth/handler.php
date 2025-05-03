@@ -2,6 +2,10 @@
 session_start();
 include '../../../templates/session/connection_check.php'; 
 
+// Ensure counter on login.php exists
+if (!isset($_SESSION['login_attempts'])) {
+    $_SESSION['login_attempts'] = 0;
+} 
 
 if (!isset($_POST['action'])) {
     header("Location: login.php?error=noaction");
@@ -48,6 +52,9 @@ if ($_POST['action'] == "login") {
         if (hash("sha256", $password) === $hashed_password) {
             echo "Password match! Logging in...<br>";
 
+            // Reset the counter on login success
+            unset($_SESSION['login_attempts']);
+
             // Set session variables
             $_SESSION['e_id'] = $e_id;
             $_SESSION['security_clearance'] = $security_clearance;
@@ -63,6 +70,9 @@ if ($_POST['action'] == "login") {
             exit();
         } else {
             // Password is incorrect
+            // Wrong Password Counter 
+            $_SESSION['login_attempts']++;
+            
             header("Location: ../../../app/pages/login.php?error=incorrect_password");
             exit();
         }

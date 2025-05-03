@@ -1,7 +1,14 @@
 <?php 
     $basePath = '../../';
     include '../../templates/session/public_session.php'; 
+
+    // counter is always defined
+    if (!isset($_SESSION['login_attempts'])) {
+        $_SESSION['login_attempts'] = 0;
+    }
+        
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -9,7 +16,8 @@
         $pageTitle = 'Login';
         include '../../templates/layouts/head.php'; 
     ?>
-
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <body>
 
         <!-- Header -->
@@ -29,7 +37,29 @@
                             echo '<div class="notification-error">Employee Login Required.</div>';
                         }
                         if ($error == 'incorrect_password') {
-                            echo '<div class="notification-error">Incorrect Username or Password.</div>';
+
+                                // Failed-login counter
+                                $attempts = $_SESSION['login_attempts'];
+                                if ($attempts < 3) {
+                                    $left = 3 - $attempts;
+                                    echo "<div class='notification-error'>
+                                            Incorrect Username or Password. You have {$left} attempt"
+                                          . ($left > 1 ? 's' : '') .
+                                          " left.
+                                          </div>";
+                                } else {
+                                    echo <<<HTML
+                                    <script>
+                                      Swal.fire({
+                                        icon: 'error',
+                                        title: 'Account Locked',
+                                        text: 'Your account has been locked due to multiple failed login attempts. HR has been notified.',
+                                        confirmButtonText: 'OK'
+                                      });
+                                    </script>
+                                    HTML; 
+                                }
+                        
                         } else if ($error == 'user_not_found') {
                             echo '<div class="notification-error">Incorrect Username or Password.</div>';
                         }

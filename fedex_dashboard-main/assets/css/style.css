@@ -1346,15 +1346,7 @@ footer {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 30px;
-    margin-top: 40px;
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
-}
+
 
 .chart-container {
     background: white;
@@ -1397,6 +1389,7 @@ footer {
 }
 
 .analytics-section {
+    width: 100%;
     background: white;
     padding: 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -1446,16 +1439,6 @@ footer {
     display: flex;
     justify-content: center;
     align-items: center;
-}
-
-.state-tooltip {
-    position: absolute;
-    padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    font-size: 14px;
-    pointer-events: none;
-    z-index: 100;
 }
 
 .state {
@@ -1525,4 +1508,18 @@ footer {
 
 .btn-reset-password:hover {
     background-color: #3a1139;
+}
+
+.state-tooltip {
+    background-color: black;
+    color: white;
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 1000;
+    pointer-events: none;
+    width: auto;
+    text-align: center;
+    position: absolute;
+    font-weight: bold;
+    transform: translate(-50%, -50%); /* Center tooltip on cursor */
 }
