@@ -53,12 +53,14 @@
                                       Swal.fire({
                                         icon: 'error',
                                         title: 'Account Locked',
-                                        text: 'Your account has been locked due to multiple failed login attempts. HR has been notified.',
+                                        text: 'Your account has been locked due to multiple failed login attempts. Please contact HR.',
                                         confirmButtonText: 'OK'
                                       });
                                     </script>
                                     HTML; 
                                 }
+
+                                echo '<div class="notification-error">Incorrect Username or Password.</div>';
                         
                         } else if ($error == 'user_not_found') {
                             echo '<div class="notification-error">Incorrect Username or Password.</div>';
