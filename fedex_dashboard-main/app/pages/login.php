@@ -43,7 +43,7 @@
                                 if ($attempts < 3) {
                                     $left = 3 - $attempts;
                                     echo "<div class=\"notification error\">
-                                            Incorrect Username or Password. You have {$left} attempt"
+                                            You have {$left} attempt"
                                           . ($left > 1 ? 's' : '') .
                                           " left.
                                           </div>";
