@@ -28,11 +28,6 @@ $sort_direction = $_GET['dir'] ?? '';
 
 // Add base restrictions from user role
 switch($user_role) {
-    case 'Employee':
-        $sql .= " WHERE e.e_id = ?";
-        $params[] = $e_id;
-        $types .= "s";
-        break;
     case 'Manager':
         $sql .= " WHERE (e.m_id = ? OR e.e_id = ?)";
         $params[] = $e_id;
