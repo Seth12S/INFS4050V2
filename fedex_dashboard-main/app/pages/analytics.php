@@ -540,7 +540,7 @@ if (in_array($user_role, ['SVP', 'VP', 'System Admin'])) {
                                 </select>
                             </div>
                         </div>
-                        <div class="chart-container">
+                        <div class="chart-container" style="height: 800px;">
                             <canvas id="leadershipBarChart"></canvas>
                         </div>
                     </div>
@@ -786,6 +786,8 @@ const leaderCounts = <?php echo json_encode($leaderCounts); ?>;
 const leadershipType = '<?php echo $leadership_type; ?>';
 let leadershipChart;
 
+
+
 // Function to create the leadership bar chart
 function createLeadershipChart() {
     const ctx = document.getElementById('leadershipBarChart').getContext('2d');
@@ -800,8 +802,8 @@ function createLeadershipChart() {
     let displayCounts = [...leaderCounts];
     
     if (displayNames.length > 10) {
-        displayNames = displayNames.slice(0, 10);
-        displayCounts = displayCounts.slice(0, 10);
+        displayNames = displayNames;
+        displayCounts = displayCounts;
     }
     
     // If chart already exists, destroy it
