@@ -3,10 +3,6 @@
     $basePath = '../../';
     include '../../templates/session/private_session.php';
 
-
-    echo "User role: " . $user_role . "<br>";
-    echo "Security clearance: " . $security_clearance;
-
     if ($security_clearance < 2) {
         header("Location: team2/app/pages/login.php");
         exit();
@@ -42,12 +38,6 @@
     $stmt->execute();
     $result = $stmt->get_result();
     $employee = $result->fetch_assoc();
-
-    // Displaying employee data
-    echo "<pre>";
-    print_r($employee);
-    echo "</pre>";
-
 
 
 
@@ -179,32 +169,8 @@
     }
     $svps_stmt->close();
 
-
-
-
-    echo "<pre>";
-    print_r($locations);
-    echo "</pre>";
-
-    echo "<pre>";
-    print_r($managers);
-    echo "</pre>";
-
-    echo "<pre>";
-    print_r($directors);
-    echo "</pre>";
-
-    echo "<pre>";
-    print_r($vps);
-    echo "</pre>";
-
-    echo "<pre>";
-    print_r($svps);
-    echo "</pre>";
-
 ?>
 
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
