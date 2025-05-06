@@ -14,6 +14,22 @@ if ($security_clearance != '6') {
 
 // Check if form was submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Check current employee count against approved headcount
+    $count_sql = "SELECT COUNT(*) as current_count FROM FedEx_Employees";
+    $count_result = $conn->query($count_sql);
+    $count_row = $count_result->fetch_assoc();
+    $current_count = $count_row['current_count'];
+
+    $approved_sql = "SELECT `FY23 Approved Headcount` FROM approved_headcount LIMIT 1";
+    $approved_result = $conn->query($approved_sql);
+    $approved_row = $approved_result->fetch_assoc();
+    $approved_count = $approved_row['FY23 Approved Headcount'];
+
+    if ($current_count >= $approved_count) {
+        header("Location: ../../pages/add_employee.php?error=headcount_exceeded");
+        exit();
+    }
+
     $e_id = $_POST['e_id'];
     
     // Check for duplicate ID in FedEx_Employees table

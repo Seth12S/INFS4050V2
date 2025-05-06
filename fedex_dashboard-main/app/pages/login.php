@@ -43,7 +43,7 @@
                                 if ($attempts < 3) {
                                     $left = 3 - $attempts;
                                     echo "<div class='notification-error'>
-                                            Incorrect Username or Password. You have {$left} attempt"
+                                            You have {$left} attempt"
                                           . ($left > 1 ? 's' : '') .
                                           " left.
                                           </div>";
@@ -53,12 +53,14 @@
                                       Swal.fire({
                                         icon: 'error',
                                         title: 'Account Locked',
-                                        text: 'Your account has been locked due to multiple failed login attempts. HR has been notified.',
+                                        text: 'Your account has been locked due to multiple failed login attempts. Please contact HR at 1-800-555-1234 or email hr-support@fedexcompany.com.',
                                         confirmButtonText: 'OK'
                                       });
                                     </script>
                                     HTML; 
                                 }
+
+                                echo '<div class="notification-error">Incorrect Username or Password.</div>';
                         
                         } else if ($error == 'user_not_found') {
                             echo '<div class="notification-error">Incorrect Username or Password.</div>';

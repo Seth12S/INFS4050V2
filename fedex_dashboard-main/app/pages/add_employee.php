@@ -34,6 +34,9 @@
                         case 'duplicate_id_archived':
                             $errorMessage = 'Employee ID is already in use.';
                             break;
+                        case 'headcount_exceeded':
+                            $errorMessage = 'Cannot add new employee: Approved headcount limit of 270 has been reached.';
+                            break;
                         default:
                             $errorMessage = 'Error: ' . htmlspecialchars($error);
                     }

@@ -230,10 +230,9 @@ $filter_result = $filter_stmt->get_result();
 $job_titles = [];
 $directors = [];
 $managers = [];
-$cities = [];
 $states = [];
 
-// Get all unique values for filters
+// Get all unique values for filters (except cities)
 while ($row = $filter_result->fetch_assoc()) {
     if (!in_array($row['job_title'], $job_titles)) {
         $job_titles[] = $row['job_title'];
@@ -253,13 +252,31 @@ while ($row = $filter_result->fetch_assoc()) {
         }
     }
     
-    if ($row['city'] && !in_array($row['city'], $cities)) {
-        $cities[] = $row['city'];
-    }
-    
     if ($row['state'] && !in_array($row['state'], $states)) {
         $states[] = $row['state'];
     }
+}
+
+// Now, get cities based on selected state
+$cities = [];
+if (!empty($state_filter)) {
+    $city_stmt = $conn->prepare("SELECT DISTINCT l.city FROM FedEx_Locations l WHERE l.state = ? ORDER BY l.city");
+    $city_stmt->bind_param("s", $state_filter);
+    $city_stmt->execute();
+    $city_result = $city_stmt->get_result();
+    while ($row = $city_result->fetch_assoc()) {
+        $cities[] = $row['city'];
+    }
+    $city_stmt->close();
+} else {
+    // If no state selected, show all cities
+    $city_stmt = $conn->prepare("SELECT DISTINCT l.city FROM FedEx_Locations l ORDER BY l.city");
+    $city_stmt->execute();
+    $city_result = $city_stmt->get_result();
+    while ($row = $city_result->fetch_assoc()) {
+        $cities[] = $row['city'];
+    }
+    $city_stmt->close();
 }
 
 // Sort the arrays alphabetically

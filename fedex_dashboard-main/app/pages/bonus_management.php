@@ -444,73 +444,58 @@ $bonuses_result = $conn->query($bonuses_query);
 
         <!-- Main table -->
         <div class="bonus-tables">
-            <?php
-            // Get all unique organizations
-            $org_query = "SELECT DISTINCT e.org_name 
-                         FROM FedEx_Employees e 
-                         JOIN fedex_bonus_data b ON e.e_id = b.id 
-                         WHERE b.bonus_amount > 0 
-                         ORDER BY e.org_name";
-            $org_result = $conn->query($org_query);
-            
-            while ($org = $org_result->fetch_assoc()) {
-                $org_name = $org['org_name'] ?: 'Unassigned Organization';
-                echo '<h3>' . htmlspecialchars($org_name) . '</h3>';
-                echo '<table class="bonus-table">';
-                echo '<thead><tr>
+            <table class="bonus-table">
+                <thead>
+                    <tr>
                         <th>Employee</th>
                         <th>Role</th>
                         <th>Performance Rating</th>
                         <th>Weighted Performance</th>
                         <th>Bonus Amount</th>
                         <th>Actions</th>
-                      </tr></thead>';
-                echo '<tbody>';
-                
-                // Get employees for this organization
-                $emp_query = "SELECT 
-                                b.id,
-                                b.first_name,
-                                b.last_name,
-                                j.job_title,
-                                b.fy25_performance_rating,
-                                b.weighted_performance,
-                                b.bonus_amount
-                            FROM fedex_bonus_data b
-                            LEFT JOIN FedEx_Employees e ON b.id = e.e_id
-                            LEFT JOIN FedEx_Jobs j ON e.job_code = j.job_code
-                            WHERE (e.org_name = ? OR (e.org_name IS NULL AND ? = 'Unassigned Organization'))
-                            AND b.bonus_amount > 0
-                            ORDER BY b.last_name, b.first_name";
-                $stmt = $conn->prepare($emp_query);
-                $stmt->bind_param("ss", $org['org_name'], $org['org_name']);
-                $stmt->execute();
-                $emp_result = $stmt->get_result();
-                
-                while ($employee = $emp_result->fetch_assoc()) {
-                    $employee_data = json_encode([
-                        'id' => $employee['id'],
-                        'first_name' => $employee['first_name'],
-                        'last_name' => $employee['last_name'],
-                        'job_title' => $employee['job_title'],
-                        'fy25_performance_rating' => $employee['fy25_performance_rating'],
-                        'weighted_performance' => $employee['weighted_performance'],
-                        'bonus_amount' => $employee['bonus_amount']
-                    ]);
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    // Get all employees
+                    $emp_query = "SELECT 
+                                    b.id,
+                                    b.first_name,
+                                    b.last_name,
+                                    j.job_title,
+                                    b.fy25_performance_rating,
+                                    b.weighted_performance,
+                                    b.bonus_amount
+                                FROM fedex_bonus_data b
+                                LEFT JOIN FedEx_Employees e ON b.id = e.e_id
+                                LEFT JOIN FedEx_Jobs j ON e.job_code = j.job_code
+                                WHERE b.bonus_amount > 0
+                                ORDER BY b.last_name, b.first_name";
+                    $emp_result = $conn->query($emp_query);
                     
-                    echo '<tr>';
-                    echo '<td>' . htmlspecialchars($employee['last_name'] . ', ' . $employee['first_name']) . '</td>';
-                    echo '<td>' . htmlspecialchars($employee['job_title']) . '</td>';
-                    echo '<td>' . htmlspecialchars($employee['fy25_performance_rating']) . '/10</td>';
-                    echo '<td>' . number_format($employee['weighted_performance'] * 100, 2) . '%</td>';
-                    echo '<td>$' . number_format($employee['bonus_amount'], 2) . '</td>';
-                    echo '<td><button onclick="openEditForm(' . htmlspecialchars($employee_data) . ')" class="btn-edit">Edit Rating</button></td>';
-                    echo '</tr>';
-                }
-                
-                echo '</tbody></table>';
-            }
-            ?>
+                    while ($employee = $emp_result->fetch_assoc()) {
+                        $employee_data = json_encode([
+                            'id' => $employee['id'],
+                            'first_name' => $employee['first_name'],
+                            'last_name' => $employee['last_name'],
+                            'job_title' => $employee['job_title'],
+                            'fy25_performance_rating' => $employee['fy25_performance_rating'],
+                            'weighted_performance' => $employee['weighted_performance'],
+                            'bonus_amount' => $employee['bonus_amount']
+                        ]);
+                        
+                        echo '<tr>';
+                        echo '<td>' . htmlspecialchars($employee['last_name'] . ', ' . $employee['first_name']) . '</td>';
+                        echo '<td>' . htmlspecialchars($employee['job_title']) . '</td>';
+                        echo '<td>' . htmlspecialchars($employee['fy25_performance_rating']) . '/10</td>';
+                        echo '<td>' . number_format($employee['weighted_performance'] * 100, 2) . '%</td>';
+                        echo '<td>$' . number_format($employee['bonus_amount'], 2) . '</td>';
+                        echo '<td><button onclick="openEditForm(' . htmlspecialchars($employee_data) . ')" class="btn-edit">Edit Rating</button></td>';
+                        echo '</tr>';
+                    }
+                    ?>
+                </tbody>
+            </table>
         </div>
     </main>
 
