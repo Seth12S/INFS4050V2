@@ -1,7 +1,7 @@
 <?php
 
 // By default, it will connect to the UCCS server. true = UCCS, false = Localhost
-$useUCCS = false;
+$useUCCS = true;
 
 // UCCS Credentials
 $uccs_host = '128.198.162.149';
