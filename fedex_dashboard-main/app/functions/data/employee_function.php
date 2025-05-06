@@ -203,7 +203,7 @@ $filter_sql = "SELECT DISTINCT
     LEFT JOIN FedEx_Employees d ON e.d_id = d.e_id
     LEFT JOIN FedEx_Locations l ON e.zip_code = l.zip_code";
 
-// This is the query that grabs the unique values for the filters
+// Apply role-based restrictions to filter options
 if ($user_role === 'Manager') {
     $filter_sql .= " WHERE e.m_id = ?";
     $filter_params = [$e_id];
@@ -212,12 +212,7 @@ if ($user_role === 'Manager') {
     $filter_sql .= " WHERE e.d_id = ? OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id = ?)";
     $filter_params = [$e_id, $e_id];
     $filter_types = "ss";
-} elseif ($user_role === 'VP' || $user_role === 'SVP') {
-    $filter_sql .= " WHERE e.vp_id = ? OR e.d_id IN (SELECT e_id FROM FedEx_Employees WHERE vp_id = ?) 
-                    OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id IN (SELECT e_id FROM FedEx_Employees WHERE vp_id = ?))";
-    $filter_params = [$e_id, $e_id, $e_id];
-    $filter_types = "sss";
-}
+} 
 
 $filter_stmt = $conn->prepare($filter_sql);
 if (!empty($filter_params)) {
@@ -257,27 +252,61 @@ while ($row = $filter_result->fetch_assoc()) {
     }
 }
 
-// Now, get cities based on selected state
+// Get cities based on user role and selected state
 $cities = [];
-if (!empty($state_filter)) {
-    $city_stmt = $conn->prepare("SELECT DISTINCT l.city FROM FedEx_Locations l WHERE l.state = ? ORDER BY l.city");
-    $city_stmt->bind_param("s", $state_filter);
-    $city_stmt->execute();
-    $city_result = $city_stmt->get_result();
-    while ($row = $city_result->fetch_assoc()) {
-        $cities[] = $row['city'];
-    }
-    $city_stmt->close();
+
+// Base query for cities that respects user roles
+$city_base_sql = "SELECT DISTINCT l.city 
+                  FROM FedEx_Locations l
+                  JOIN FedEx_Employees e ON l.zip_code = e.zip_code";
+
+// Add role-based filters to city query, similar to the main filter query
+if ($user_role === 'Manager') {
+    $city_where = " WHERE e.m_id = ?";
+    $city_params = [$e_id];
+    $city_types = "s";
+} elseif ($user_role === 'Director') {
+    $city_where = " WHERE e.d_id = ? OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id = ?)";
+    $city_params = [$e_id, $e_id];
+    $city_types = "ss";
+} elseif ($user_role === 'VP' || $user_role === 'SVP') {
+    $city_where = " WHERE e.vp_id = ? OR e.d_id IN (SELECT e_id FROM FedEx_Employees WHERE vp_id = ?) 
+                   OR e.m_id IN (SELECT e_id FROM FedEx_Employees WHERE d_id IN (SELECT e_id FROM FedEx_Employees WHERE vp_id = ?))";
+    $city_params = [$e_id, $e_id, $e_id];
+    $city_types = "sss";
 } else {
-    // If no state selected, show all cities
-    $city_stmt = $conn->prepare("SELECT DISTINCT l.city FROM FedEx_Locations l ORDER BY l.city");
-    $city_stmt->execute();
-    $city_result = $city_stmt->get_result();
-    while ($row = $city_result->fetch_assoc()) {
-        $cities[] = $row['city'];
-    }
-    $city_stmt->close();
+    // System Admin - no restrictions
+    $city_where = "";
+    $city_params = [];
+    $city_types = "";
 }
+
+// Add state filter if selected
+if (!empty($state_filter)) {
+    if (empty($city_where)) {
+        $city_where = " WHERE l.state = ?";
+    } else {
+        $city_where .= " AND l.state = ?";
+    }
+    $city_params[] = $state_filter;
+    $city_types .= "s";
+}
+
+// Complete the query
+$city_sql = $city_base_sql . $city_where . " ORDER BY l.city";
+
+// Execute the query
+$city_stmt = $conn->prepare($city_sql);
+if (!empty($city_params)) {
+    $city_stmt->bind_param($city_types, ...$city_params);
+}
+$city_stmt->execute();
+$city_result = $city_stmt->get_result();
+
+while ($row = $city_result->fetch_assoc()) {
+    $cities[] = $row['city'];
+}
+$city_stmt->close();
 
 // Sort the arrays alphabetically
 sort($job_titles);

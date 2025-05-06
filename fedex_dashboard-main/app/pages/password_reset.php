@@ -21,7 +21,20 @@
             <div class="reset-container">
                 <h2>Reset Your Password</h2>
                 
-                <?php if (isset($error)) echo "<p class='error'>$error</p>"; ?>
+                <?php if (isset($error)): ?>
+                    <?php 
+                    // Check if this is a success message
+                    if (strpos($error, 'success:') === 0) {
+                        $message_class = 'success-message';
+                        $error = substr($error, 8); // Remove the 'success:' prefix
+                    } else {
+                        $message_class = 'error-message';
+                    }
+                    ?>
+                    <div class="message <?php echo $message_class; ?>">
+                        <?php echo htmlspecialchars($error); ?>
+                    </div>
+                <?php endif; ?>
                 
                 <form action="password_reset.php" method="POST">
                     <div class="password-row">

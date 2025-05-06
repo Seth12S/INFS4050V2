@@ -1,88 +1,95 @@
 <?php
-$basePath = '../../';
-include '../../templates/session/private_session.php';
 
-// Get user's role
-$user_role_stmt = $conn->prepare("
-    SELECT j.job_title 
-    FROM FedEx_Employees e
-    JOIN FedEx_Jobs j ON e.job_code = j.job_code
-    WHERE e.e_id = ?
-");
-$user_role_stmt->bind_param("s", $_SESSION['e_id']);
-$user_role_stmt->execute();
-$user_role_result = $user_role_stmt->get_result();
-$user_role_row = $user_role_result->fetch_assoc();
-$user_role = $user_role_row['job_title'];
+    $basePath = '../../';
+    include '../../templates/session/private_session.php';
 
-// Check if user has sufficient clearance (Director or higher)
-if ($security_clearance < 3) {
-    header("Location: employees_table.php?error=unauthorized");
-    exit();
-}
 
-// Get employee ID from URL
-$employee_id = $_GET['id'] ?? null;
-if (!$employee_id) {
-    header("Location: employees_table.php?error=no_employee");
-    exit();
-}
+    echo "User role: " . $user_role . "<br>";
+    echo "Security clearance: " . $security_clearance;
 
-// Fetch employee data
-$stmt = $conn->prepare("
-    SELECT e.*, j.job_title, l.city, l.state, 
-           m.f_name as m_fname, m.l_name as m_lname,
-           d.f_name as d_fname, d.l_name as d_lname,
-           vp.f_name as vp_fname, vp.l_name as vp_lname,
-           svp.f_name as svp_fname, svp.l_name as svp_lname
-    FROM FedEx_Employees e
-    LEFT JOIN FedEx_Jobs j ON e.job_code = j.job_code
-    LEFT JOIN FedEx_Locations l ON e.zip_code = l.zip_code
-    LEFT JOIN FedEx_Employees m ON e.m_id = m.e_id
-    LEFT JOIN FedEx_Employees d ON e.d_id = d.e_id
-    LEFT JOIN FedEx_Employees vp ON e.vp_id = vp.e_id
-    LEFT JOIN FedEx_Employees svp ON e.svp_id = svp.e_id
-    WHERE e.e_id = ?
-");
-$stmt->bind_param("s", $employee_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$employee = $result->fetch_assoc();
+    if ($security_clearance < 2) {
+        header("Location: team2/app/pages/login.php");
+        exit();
+    }
 
-if (!$employee) {
-    header("Location: employees_table.php?error=employee_not_found");
-    exit();
-}
 
-// For Directors, check if they're trying to edit an employee under them
-if ($user_role === 'Director' && $employee['d_id'] !== $_SESSION['e_id']) {
-    header("Location: employees_table.php?error=unauthorized");
-    exit();
-}
+    // Get employee ID from URL
+    $employee_id = $_GET['id'] ?? null;
+    if (!$employee_id) {
+        header("Location: employees_table.php?error=no_employee");
+        exit();
+    }
 
-// Fetch available managers based on user role
-$managers_sql = "SELECT e_id, f_name, l_name 
-                 FROM FedEx_Employees 
-                 WHERE job_code IN (SELECT job_code FROM FedEx_Jobs WHERE job_title LIKE '%Manager%')";
 
-// If user is a Director, only show managers under them
-if ($user_role === 'Director') {
-    $managers_sql .= " AND d_id = ?";
-    $managers_stmt = $conn->prepare($managers_sql);
-    $managers_stmt->bind_param("s", $_SESSION['e_id']);
-} else {
-    $managers_stmt = $conn->prepare($managers_sql);
-}
+    // Fetch employee data
+    $stmt = $conn->prepare("
+        SELECT e.*, j.job_title, l.city, l.state, 
+            m.f_name as m_fname, m.l_name as m_lname,
+            d.f_name as d_fname, d.l_name as d_lname,
+            vp.f_name as vp_fname, vp.l_name as vp_lname,
+            svp.f_name as svp_fname, svp.l_name as svp_lname
+        FROM FedEx_Employees e
+        LEFT JOIN FedEx_Jobs j ON e.job_code = j.job_code
+        LEFT JOIN FedEx_Locations l ON e.zip_code = l.zip_code
+        LEFT JOIN FedEx_Employees m ON e.m_id = m.e_id
+        LEFT JOIN FedEx_Employees d ON e.d_id = d.e_id
+        LEFT JOIN FedEx_Employees vp ON e.vp_id = vp.e_id
+        LEFT JOIN FedEx_Employees svp ON e.svp_id = svp.e_id
+        WHERE e.e_id = ?
+    ");
 
-$managers_stmt->execute();
-$managers_result = $managers_stmt->get_result();
-$managers = [];
-while ($row = $managers_result->fetch_assoc()) {
-    $managers[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
-}
+    $stmt->bind_param('i', $employee_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $employee = $result->fetch_assoc();
 
-// Only fetch other dropdowns if user is System Admin
-if ($security_clearance >= 6) {
+    // Displaying employee data
+    echo "<pre>";
+    print_r($employee);
+    echo "</pre>";
+
+
+
+
+    // Fetch available managers based on user role
+    $managers = [];
+    // Base query to get managers
+    $managers_sql = "SELECT e.e_id, e.f_name, e.l_name, j.job_title 
+                    FROM FedEx_Employees e
+                    JOIN FedEx_Jobs j ON e.job_code = j.job_code
+                    WHERE j.job_title LIKE '%Manager%' AND j.job_type = 'Management'";
+
+    // Different filtering based on user role
+    if (in_array($user_role, ['SVP', 'VP', 'System Admin', 'SystemAdmin'])) {
+        // Higher level roles can see all managers
+        $managers_stmt = $conn->prepare($managers_sql . " ORDER BY e.l_name, e.f_name");
+    } else {
+        // Role-based filtering
+        switch($user_role) {
+            
+            case 'Director IT':
+                // Directors can see managers who report to them
+                $managers_sql .= " AND (e.d_id = ? OR e.m_id = ?)";
+                $managers_stmt = $conn->prepare($managers_sql . " ORDER BY e.l_name, e.f_name");
+                $managers_stmt->bind_param('ss', $_SESSION['e_id'], $_SESSION['e_id']);
+                break;
+            
+            default:
+                // Fallback (shouldn't happen, but just in case)
+                $managers_stmt = $conn->prepare($managers_sql . " ORDER BY e.l_name, e.f_name");
+        }
+    }
+    // Execute query
+    $managers_stmt->execute();
+    $managers_result = $managers_stmt->get_result();
+    // Populate managers array
+    while ($row = $managers_result->fetch_assoc()) {
+        $managers[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
+    }
+    $managers_stmt->close();
+
+
+
     // Fetch jobs
     $jobs_result = $conn->query("SELECT job_code, job_title FROM FedEx_Jobs ORDER BY job_title");
     $jobs = [];
@@ -90,48 +97,7 @@ if ($security_clearance >= 6) {
         $jobs[$row['job_code']] = $row['job_title'];
     }
 
-    // Fetch locations
-    $locations_result = $conn->query("SELECT zip_code, city, state FROM FedEx_Locations ORDER BY city");
-    $locations = [];
-    while ($row = $locations_result->fetch_assoc()) {
-        $locations[$row['zip_code']] = $row['city'] . ', ' . $row['state'];
-    }
 
-    // Fetch directors
-    $directors_result = $conn->query("
-        SELECT e_id, f_name, l_name 
-        FROM FedEx_Employees 
-        WHERE job_code IN (SELECT job_code FROM FedEx_Jobs WHERE job_title LIKE '%Director%')
-        ORDER BY l_name, f_name
-    ");
-    $directors = [];
-    while ($row = $directors_result->fetch_assoc()) {
-        $directors[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
-    }
-
-    // Fetch VPs
-    $vps_result = $conn->query("
-        SELECT e_id, f_name, l_name 
-        FROM FedEx_Employees 
-        WHERE job_code IN (SELECT job_code FROM FedEx_Jobs WHERE job_title LIKE '%Vice President%')
-        ORDER BY l_name, f_name
-    ");
-    $vps = [];
-    while ($row = $vps_result->fetch_assoc()) {
-        $vps[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
-    }
-
-    // Fetch SVPs
-    $svps_result = $conn->query("
-        SELECT e_id, f_name, l_name 
-        FROM FedEx_Employees 
-        WHERE job_code IN (SELECT job_code FROM FedEx_Jobs WHERE job_title = 'SVP')
-        ORDER BY l_name, f_name
-    ");
-    $svps = [];
-    while ($row = $svps_result->fetch_assoc()) {
-        $svps[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
-    }
 
     // Fetch security clearances
     $clearance_result = $conn->query("SELECT role_id, role_name FROM FedEx_Security_Clearance ORDER BY role_id");
@@ -139,7 +105,105 @@ if ($security_clearance >= 6) {
     while ($row = $clearance_result->fetch_assoc()) {
         $clearances[$row['role_id']] = $row['role_name'];
     }
-}
+
+
+
+    // Locations
+    $locations = [];
+    $locations_sql = "SELECT l.zip_code, l.city, l.state
+                     FROM FedEx_Locations l";
+
+    $locations_stmt = $conn->prepare($locations_sql);
+    $locations_stmt->execute();
+    $locations_result = $locations_stmt->get_result();
+    while ($row = $locations_result->fetch_assoc()) {
+        $locations[$row['zip_code']] = $row['city'] . ', ' . $row['state'];
+    }
+    $locations_stmt->close();
+
+
+
+
+    // For directors - allow VPs, SVPs, and System Admins to see all directors
+    $directors = [];
+    if (in_array($user_role, ['VP', 'SVP', 'Systems Administrator'])) {
+        // All high-level roles can see all directors
+        $directors_sql = "SELECT e.e_id, e.f_name, e.l_name 
+                         FROM FedEx_Employees e 
+                         JOIN FedEx_Jobs j ON e.job_code = j.job_code
+                         WHERE j.job_title LIKE '%Director%'
+                         ORDER BY e.l_name, e.f_name";
+        
+        $directors_stmt = $conn->prepare($directors_sql);
+        $directors_stmt->execute();
+        $directors_result = $directors_stmt->get_result();
+        
+        while ($row = $directors_result->fetch_assoc()) {
+            $directors[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
+        }
+        $directors_stmt->close();
+    }
+
+
+
+    // Fetch VPs
+    $vps = [];
+    $vps_sql = "SELECT e.e_id, e.f_name, e.l_name 
+                FROM FedEx_Employees e 
+                JOIN FedEx_Jobs j ON e.job_code = j.job_code
+                WHERE j.job_title LIKE '%Vice President IT%'
+                ORDER BY e.l_name, e.f_name";
+
+    $vps_stmt = $conn->prepare($vps_sql);
+    $vps_stmt->execute();
+    $vps_result = $vps_stmt->get_result();
+    while ($row = $vps_result->fetch_assoc()) {
+        $vps[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
+    }
+    $vps_stmt->close();
+
+
+
+    // Fetch SVPs
+    $svps = [];
+    $svps_sql = "SELECT e.e_id, e.f_name, e.l_name 
+                FROM FedEx_Employees e 
+                JOIN FedEx_Jobs j ON e.job_code = j.job_code
+                WHERE j.job_title LIKE '%SVP%'";
+
+    $svps_stmt = $conn->prepare($svps_sql); 
+    $svps_stmt->execute();
+    $svps_result = $svps_stmt->get_result();
+    while ($row = $svps_result->fetch_assoc()) {
+        $svps[$row['e_id']] = $row['f_name'] . ' ' . $row['l_name'];
+    }
+    $svps_stmt->close();
+
+
+
+
+    echo "<pre>";
+    print_r($locations);
+    echo "</pre>";
+
+    echo "<pre>";
+    print_r($managers);
+    echo "</pre>";
+
+    echo "<pre>";
+    print_r($directors);
+    echo "</pre>";
+
+    echo "<pre>";
+    print_r($vps);
+    echo "</pre>";
+
+    echo "<pre>";
+    print_r($svps);
+    echo "</pre>";
+
+?>
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -162,33 +226,114 @@ if ($security_clearance >= 6) {
                     <input type="text" value="<?php echo htmlspecialchars($employee['e_id']); ?>" disabled>
                 </div>
 
-                <div class="form-group">
-                    <label>First Name:</label>
-                    <input type="text" value="<?php echo htmlspecialchars($employee['f_name']); ?>" disabled>
-                </div>
-
-                <div class="form-group">
-                    <label>Last Name:</label>
-                    <input type="text" value="<?php echo htmlspecialchars($employee['l_name']); ?>" disabled>
-                </div>
-
                 <!-- Only show editable manager field for Directors -->
-                <?php if ($user_role === 'Director' || $security_clearance >= 6): ?>
-                <div class="form-group">
-                    <label>Manager:</label>
-                    <select name="m_id">
-                        <option value="">None</option>
-                        <?php foreach ($managers as $id => $name): ?>
-                            <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['m_id'] ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($name); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+                <?php if ($user_role === 'Director IT'): ?>
+                    <div class="form-group">
+                        <label>First Name:</label>
+                        <input type="text" value="<?php echo htmlspecialchars($employee['f_name']); ?>" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name:</label>
+                        <input type="text" value="<?php echo htmlspecialchars($employee['l_name']); ?>" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Location:</label>
+                        <select name="zip_code">
+                            <option value="">None</option>
+                            <?php foreach ($locations as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['zip_code'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Manager:</label>
+                        <select name="m_id">
+                            <option value="">None</option>
+                            <?php foreach ($managers as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['m_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 <?php endif; ?>
 
+                <!-- Only show editable location,manager, director, vice president, senior vice president for SVP and VP-->
+                <?php if ($user_role === 'SVP' || $user_role === 'VP'): ?>
+                    <div class="form-group">
+                        <label>First Name:</label>
+                        <input type="text" value="<?php echo htmlspecialchars($employee['f_name']); ?>" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name:</label>
+                        <input type="text" value="<?php echo htmlspecialchars($employee['l_name']); ?>" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Location:</label>
+                        <select name="zip_code">
+                            <option value="">None</option>
+                            <?php foreach ($locations as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['zip_code'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Manager:</label>
+                        <select name="m_id">
+                            <option value="">None</option>
+                            <?php foreach ($managers as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['m_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Director:</label>
+                        <select name="d_id">
+                            <option value="">None</option>
+                            <?php foreach ($directors as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['d_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Vice President:</label>
+                        <select name="vp_id">
+                            <option value="">None</option>
+                            <?php foreach ($vps as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['vp_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Senior Vice President:</label>
+                        <select name="svp_id">
+                            <option value="">None</option>
+                            <?php foreach ($svps as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['svp_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+                    
+                    
+                    
+                    
+                    
+
                 <!-- System Admin only fields -->
-                <?php if ($security_clearance >= 6): ?>
+                <?php if ($user_role === 'Systems Administrator'): ?>
                     <!-- Include all the other editable fields here -->
                     <div class="form-group">
                         <label>First Name:</label>
@@ -198,21 +343,6 @@ if ($security_clearance >= 6) {
                     <div class="form-group">
                         <label>Last Name:</label>
                         <input type="text" name="l_name" value="<?php echo htmlspecialchars($employee['l_name']); ?>">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Tenure:</label>
-                        <input type="text" name="tenure" value="<?php echo htmlspecialchars($employee['tenure']); ?>">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Anniversary Date:</label>
-                        <input type="date" name="anniversary" value="<?php echo htmlspecialchars($employee['anniversary']); ?>">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Birth Date:</label>
-                        <input type="date" name="birth_date" value="<?php echo htmlspecialchars($employee['birth_date']); ?>">
                     </div>
 
                     <div class="form-group">
@@ -241,6 +371,18 @@ if ($security_clearance >= 6) {
                         <select name="security_clearance">
                             <?php foreach ($clearances as $id => $name): ?>
                                 <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['security_clearance'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Manager:</label>
+                        <select name="m_id">
+                            <option value="">None</option>
+                            <?php foreach ($managers as $id => $name): ?>
+                                <option value="<?php echo htmlspecialchars($id); ?>" <?php echo $id == $employee['m_id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($name); ?>
                                 </option>
                             <?php endforeach; ?>

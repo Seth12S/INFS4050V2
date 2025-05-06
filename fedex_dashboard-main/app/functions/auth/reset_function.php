@@ -2,6 +2,11 @@
 // Get the logged-in user's ID
 $e_id = $_SESSION['e_id'];
 
+// Initialize message variables
+$success = null;
+$error = null;
+$redirect = false; // Track if we should redirect
+
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_password = trim($_POST['new_password']);
@@ -21,17 +26,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $hashed_password = hash("sha256", $new_password);
 
         // Update password in the database & mark password_reset_required as FALSE
-        $stmt = $conn->prepare("UPDATE FedEx_Employees SET password = ?, password_reset_required = 'FALSE' WHERE e_id = ?");
+        $stmt = $conn->prepare("UPDATE FedEx_Employees SET password = ?, password_reset_required = 0 WHERE e_id = ?");
         $stmt->bind_param("ss", $hashed_password, $e_id);
         $stmt->execute();
         
         if ($stmt->affected_rows > 0) {
-            // Redirect to dashboard after successful password reset
-            header("Location: " . $basePath . "app/pages/dashboard.php?success=password_reset");
-            exit();
+            // Success message (display on same page)
+            $success = "Password has been reset successfully!";
+            $redirect = true; // Set redirect flag
+            
+            // Clear the form values after successful submission
+            $_POST = array();
         } else {
-            $error = "Error updating password. Please try again.";
+            $error = "Password reset failed. Please try again.";
         }
     }
 }
 ?>
+
+<?php if (isset($success)): ?>
+    <div class="message success-message">
+        <?php echo htmlspecialchars($success); ?>
+    </div>
+    
+    <?php if ($redirect): ?>
+    <script>
+        // Redirect after 2 seconds
+        setTimeout(function() {
+            window.location.href = "profile.php";
+        }, 2000);
+    </script>
+    <?php endif; ?>
+<?php endif; ?>

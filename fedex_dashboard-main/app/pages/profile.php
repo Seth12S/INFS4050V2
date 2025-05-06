@@ -13,42 +13,6 @@
     $employee = $result->fetch_assoc();
     $full_name = $employee['f_name'] . ' ' . $employee['l_name'];
 
-    // Handle password change form submission
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        $current_password = trim($_POST['current_password']);
-        $new_password = trim($_POST['new_password']);
-        $confirm_password = trim($_POST['confirm_password']);
-
-        // Validate current password
-        $stmt = $conn->prepare("SELECT password FROM FedEx_Employees WHERE e_id = ?");
-        $stmt->bind_param("s", $e_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-
-        if (hash("sha256", $current_password) !== $user['password']) {
-            $error_message = "Current password is incorrect.";
-        } elseif (strlen($new_password) < 8) {
-            $error_message = "New password must be at least 8 characters long.";
-        } elseif (!preg_match('/[A-Z]/', $new_password)) {
-            $error_message = "New password must contain at least one uppercase letter.";
-        } elseif (!preg_match('/[0-9]/', $new_password)) {
-            $error_message = "New password must contain at least one number.";
-        } elseif ($new_password !== $confirm_password) {
-            $error_message = "New passwords do not match.";
-        } else {
-            // Update password
-            $hashed_password = hash("sha256", $new_password);
-            $update_stmt = $conn->prepare("UPDATE FedEx_Employees SET password = ? WHERE e_id = ?");
-            $update_stmt->bind_param("ss", $hashed_password, $e_id);
-            
-            if ($update_stmt->execute()) {
-                $success_message = "Password updated successfully!";
-            } else {
-                $error_message = "Error updating password. Please try again.";
-            }
-        }
-    }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -105,6 +69,27 @@
             
             .notification-close:hover {
                 opacity: 1;
+            }
+
+            .password-reset-section {
+                margin-top: 30px;
+                padding: 20px;
+            }
+            
+            .btn-primary {
+                display: inline-block;
+                padding: 10px 20px;
+                background-color: #4e1187;
+                color: white;
+                border-radius: 4px;
+                text-decoration: none;
+                font-weight: bold;
+                margin-top: 10px;
+                transition: background-color 0.3s;
+            }
+            
+            .btn-primary:hover {
+                background-color: #3a0c66;
             }
         </style>
         <script>
@@ -172,28 +157,10 @@
                     <p><strong>Security Clearance Level:</strong> <?php echo htmlspecialchars($security_clearance); ?></p>
                 </div>
 
-                <div class="password-change">
-                    <h2>Change Password</h2>
-                    <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
-                        <div class="form-group">
-                            <label for="current_password">Current Password:</label>
-                            <input type="password" id="current_password" name="current_password" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="new_password">New Password:</label>
-                            <input type="password" id="new_password" name="new_password" required>
-                            <small>Password must be at least 8 characters long and contain at least one uppercase letter and one number.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="confirm_password">Confirm New Password:</label>
-                            <input type="password" id="confirm_password" name="confirm_password" required>
-                        </div>
-
-                        <button type="submit" class="submit-btn">Change Password</button>
-                    </form>
+                <div class="password-reset-section">
+                    <a href="password_reset.php" class="btn-primary">Reset Password</a>
                 </div>
+
             </div>
         </main>
 

@@ -20,15 +20,6 @@ error_reporting(E_ALL);
 
 ?>
 
-<!-- Displaying user role -->
-<?php
-
-        echo "<div style='background:yellow; padding:5px; position:fixed; top:0; left:0; z-index:9999;'>
-        User role: '" . htmlspecialchars($user_role) . "'
-        </div>";
-
-?>
-
 <!-- Grabbing Data: States dropdown filter -->
 <?php
 
@@ -260,13 +251,6 @@ error_reporting(E_ALL);
     while ($row = $jobTitleHeadcountResult->fetch_assoc()) {
         $jobTitleHeadcountData[$row['job_title']] = $row['employee_count'];
     }
-
-?>
-
-<!-- Grabing Data: Headcount by Manager or Director --> 
-<?php
-
-    // For SVP, VP, System Admin
 
 ?>
 

@@ -672,7 +672,7 @@ INSERT INTO `FedEx_Security_Clearance` (`role_id`, `role_name`, `can_view_self`,
 ('3', 'Director', '1', '1', '1', '0', '0', '0', '0'),
 ('4', 'VP', '1', '1', '1', '1', '0', '0', '0'),
 ('5', 'SVP', '1', '1', '1', '1', '1', '1', '0'),
-('6', 'System Admin', '1', '1', '1', '1', '1', '1', '1');
+('6', 'System Admin', '1', '1', '1', '1', '1', '1', '1'); 
 
 --
 -- Table structure for table `FedEx_Workforce`

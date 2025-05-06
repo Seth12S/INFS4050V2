@@ -199,7 +199,7 @@
                                             <?php if ($user_role === 'System Admin' || $user_role === 'SystemAdmin'): ?>
                                                 <a href="../functions/data/archive_function.php?id=<?php echo htmlspecialchars($row['e_id']); ?>" 
                                                    class="archive-btn" 
-                                                   onclick="return confirm('Are you sure you want to archive this employee? This action cannot be undone.');">
+                                                   onclick="return confirm('Archiving this employee will remove them from the system. This action cannot be undone.');">
                                                     Archive
                                                 </a>
                                             <?php endif; ?>
@@ -237,6 +237,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Get references to selects
             // Add hover effects to table rows
             const rows = document.querySelectorAll('.employee-table tbody tr');
             rows.forEach(row => {
